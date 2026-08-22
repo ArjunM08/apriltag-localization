@@ -1,6 +1,6 @@
 
 import numpy as np
-from Apriltags import ApriltagCorners, Apriltags
+from server.Apriltags import ApriltagCorners, Apriltags
 import cv2
 import math
 import numpy as np
@@ -46,8 +46,14 @@ class PoseEstimator:
         position = camera_in_field[:3, 3]
         rotation = camera_in_field[:3, :3]
 
-        yaw = math.atan2(R[0, 2], R[2, 2])
+        # flip_y = np.array([
+        #     [1,  0,  0],
+        #     [0, -1,  0],
+        #     [0,  0,  1]
+        # ])
 
-        return position, yaw
+        # rotation = flip_y @ rotation @ flip_y
+
+        return position, rotation
 
 

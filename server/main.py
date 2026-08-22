@@ -1,29 +1,59 @@
-from SocketServer import SocketServer
-from CameraCalibrationConstants import CAMERA_MATRIX, DIST_COEFFS
-from PoseEstimator import PoseEstimator
+import asyncio
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from server.SocketServer import SocketServer
+from server.CameraCalibrationConstants import CAMERA_MATRIX, DIST_COEFFS
+from server.PoseEstimator import PoseEstimator
 import numpy as np
+from fastapi import FastAPI, WebSocket
+import threading
+import json
 
+app = FastAPI()
+
+app.mount("/static", StaticFiles(directory='server/static', html=True), name="static")
 
 HOST = '192.168.1.223'
 PORT = 6800
 
-socket_server = SocketServer(HOST, PORT)
-socket_server.start_server()
+latest_pose = {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "R": np.eye(3).tolist()
+}
+def begin_server():
+    socket_server = SocketServer(HOST, PORT)
+    socket_server.start_server()
 
-poseEstimator = PoseEstimator(CAMERA_MATRIX, DIST_COEFFS)
-# poseEstimator.getCameraPose(np.array([
-#     [210.0, 150.0],     # Top-left corner in image
-#     [430.0, 160.0],     # Top-right corner in image
-#     [440.0, 380.0],     # Bottom-right corner in image
-#     [190.0, 370.0]      # Bottom-left corner in image
-# ], dtype=np.float32), 0)
+    poseEstimator = PoseEstimator(CAMERA_MATRIX, DIST_COEFFS)
 
+    while True:
+        data = socket_server.get_full_Payload()
+        position, rotation = poseEstimator.getCameraPose(np.array(data[0]), data[1])
+        latest_pose["x"] = position[0]
+        latest_pose["y"] = position[1]
+        latest_pose["z"] = position[2]
+        latest_pose["R"] = rotation.tolist()
 
-while True:
-    data = socket_server.get_full_Payload()
-    position, yaw = poseEstimator.getCameraPose(np.array(data[0]), data[1])
-    # print(f"position: {position}")
-    # print(f"Yaw: {np.rad2deg(yaw)}")
+    socket_server.close_connection()
 
+@app.on_event("startup")
+async def startup():
+    server_thread = threading.Thread(target=begin_server, daemon=True)
+    server_thread.start()
+    
 
-socket_server.close_connection()
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            await websocket.send_text(json.dumps(latest_pose))
+            await asyncio.sleep(0.033)  # Send updates every 33ms (~30 FPS)
+    except websocket.WebSocketDisconnect:
+        print("WebSocket disconnected")
+
+@app.get("/")
+async def root():
+    return FileResponse("server/static/index.html")
