@@ -1,7 +1,9 @@
 
 import numpy as np
-from Apriltags import Apriltags
+from Apriltags import ApriltagCorners, Apriltags
 import cv2
+import math
+import numpy as np
 
 class PoseEstimator:
     def __init__(self, camera_matrix, distortion_coeffs) -> None:
@@ -11,14 +13,15 @@ class PoseEstimator:
     def solveForCameraToTagPose(self, TagCorners: list, TagID: int):
         try:
             success, rvec, tvec = cv2.solvePnP(
-                objectPoints = Apriltags.get(TagID),
+                objectPoints = np.array(ApriltagCorners.get(TagID)),
                 imagePoints = TagCorners,
                 cameraMatrix = self.CAMERA_MATRIX,
                 distCoeffs = self.DIST_COEFFS,
                 flags = cv2.SOLVEPNP_ITERATIVE
             )
         except Exception as e:
-            raise RuntimeError("Error solving for camera to tag pose") from e
+            print(e)
+            raise RuntimeError("Error solving for camera to tag pose")
         
         if success:
             return rvec, tvec
@@ -28,7 +31,23 @@ class PoseEstimator:
     def getCameraPose(self, TagCorners: list, TagID: int):
         rvec, tvec = self.solveForCameraToTagPose(TagCorners, TagID)
         
-        print(f"rvec: {rvec}")
-        print(f"tvec: {tvec}")
+        tag_to_field = np.eye(4)
+        tag_to_field[:3,3] = Apriltags.get(TagID)
+
+        R, _ = cv2.Rodrigues(rvec) # convert to rotation matrix
+        T = np.eye(4)
+        T[:3, :3] = R
+        T[:3, 3] = tvec.flatten() #Transform representing translation and rotation
+
+        #inverts cam-to-tag and finds tag-to-cam
+        #multiply matrices to find camera pose in real coordinates
+        camera_in_field = tag_to_field @ np.linalg.inv(T)
+
+        position = camera_in_field[:3, 3]
+        rotation = camera_in_field[:3, :3]
+
+        yaw = math.atan2(R[0, 2], R[2, 2])
+
+        return position, yaw
 
 

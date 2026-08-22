@@ -19,6 +19,10 @@ def getApriltagCorners(tagCenter: list, tagSize: float = APRILTAG_SIZE) -> list:
         [x - distToEdge, y + distToEdge, z]
     ], dtype=np.float32)
 
-Apriltags = {  
-    0 : getApriltagCorners([0, 0, 0]),
+Apriltags = {
+    0: [0,0,0]
+}
+
+ApriltagCorners = {  
+    0 : getApriltagCorners(Apriltags.get(0)),
 }
