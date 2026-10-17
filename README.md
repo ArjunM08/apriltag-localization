@@ -2,7 +2,7 @@
 
 Real-time camera pose estimation using AprilTag detection on a Raspberry Pi, with a live 3D visualization in the browser.
 
-**[Demo video](#)**
+**[Demo video](https://youtu.be/viVidHBvcjc)**
 
 ---
 
